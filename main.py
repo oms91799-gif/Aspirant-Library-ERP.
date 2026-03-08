@@ -1,22 +1,22 @@
 from flask import Flask, render_template, request, redirect, url_for, session, send_file
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
-from fpdf import FPDF
 import io
 
 app = Flask(__name__)
-app.secret_key = 'aspirant_secret_key'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///library_v2.db'
+app.secret_key = 'aspirant_kashipur_secret'
+# Render par database handle karne ke liye
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///aspirant_library_v2.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
-# --- Database Models ---
+# --- Models ---
 class Student(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    student_id = db.Column(db.String(20), unique=True)  # Format: ASP2026-OM01
+    student_id = db.Column(db.String(20), unique=True)
     name = db.Column(db.String(100), nullable=False)
     password = db.Column(db.String(20), default="12345") 
     seat_number = db.Column(db.String(10), unique=True)
-    monthly_fees = db.Column(db.Float, default=500.0)
     joining_date = db.Column(db.DateTime, default=datetime.utcnow)
     payments = db.relationship('PaymentHistory', backref='student', lazy=True)
 
@@ -26,7 +26,7 @@ class Student(db.Model):
 
     @property
     def dues(self):
-        return self.monthly_fees - self.total_paid
+        return 500.0 - self.total_paid # 500 fixed monthly fees
 
 class PaymentHistory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -37,7 +37,7 @@ class PaymentHistory(db.Model):
 with app.app_context():
     db.create_all()
 
-# --- Helper: Auto ID Generator ---
+# --- ID Generator Logic ---
 def generate_id(name):
     count = Student.query.count() + 1
     year = datetime.now().year
@@ -45,28 +45,22 @@ def generate_id(name):
     return f"ASP{year}-{initials}{count:02d}"
 
 # --- Routes ---
-
 @app.route('/')
 def home():
     return render_template('login.html')
 
 @app.route('/login', methods=['POST'])
 def login():
-    username = request.form.get('username')
-    password = request.form.get('password')
-    
-    # Owner Login (Hardcoded for now)
-    if username == "admin" and password == "kashipur123":
+    uid = request.form.get('username')
+    pwd = request.form.get('password')
+    if uid == "admin" and pwd == "kashipur123":
         session['user'] = 'admin'
         return redirect(url_for('admin_dashboard'))
-    
-    # Student Login
-    student = Student.query.filter_by(student_id=username, password=password).first()
+    student = Student.query.filter_by(student_id=uid, password=pwd).first()
     if student:
         session['user'] = student.id
         return redirect(url_for('student_portal', id=student.id))
-    
-    return "Invalid Credentials!"
+    return "Ghalat ID ya Password! <a href='/'>Wapas jayein</a>"
 
 @app.route('/admin')
 def admin_dashboard():
@@ -94,6 +88,7 @@ def pay(id):
 
 @app.route('/student/<int:id>')
 def student_portal(id):
+    if not session.get('user'): return redirect(url_for('home'))
     student = Student.query.get(id)
     return render_template('student_view.html', student=student)
 
